@@ -273,6 +273,31 @@ function applyAdjust(kidId){
   save();render();toast("餘額已調整！");
 }
 
+function startEditKid(kidId){
+  const k=state.kids.find(x=>x.id===kidId);
+  if(!k) return;
+  editingKid={id:k.id,name:k.name,emoji:k.emoji,color:k.color,bg:k.bg,accent:k.accent,light:k.light};
+  showEmojiPicker=null;
+  render();
+}
+function setEditKidEmoji(i){
+  if(!editingKid) return;
+  editingKid.emoji=EMOJI_OPTIONS[i];
+  showEmojiPicker=null;
+  render();
+}
+function setEditKidTheme(i){
+  if(!editingKid) return;
+  const t=THEMES[i];
+  editingKid.color=t.color;editingKid.bg=t.bg;editingKid.accent=t.accent;editingKid.light=t.light;
+  render();
+}
+function setAppEmoji(i){
+  state.appEmoji=EMOJI_OPTIONS[i];
+  showEmojiPicker=null;
+  save();render();
+}
+
 function saveKidProfile(){
   if(!editingKid) return;
   state.kids=state.kids.map(k=>k.id===editingKid.id?{...editingKid}:k);
@@ -635,8 +660,8 @@ function buildAdminTasks(){
 function buildAdminProfile(){
   const kidCards=state.kids.map(k=>{
     if(editingKid&&editingKid.id===k.id){
-      const emojiGrid=EMOJI_OPTIONS.map(em=>`<button class="emoji-opt" onclick="editingKid.emoji='${em}';showEmojiPicker=null;render()">${em}</button>`).join("");
-      const swatches=THEMES.map(t=>`<button class="btn" onclick="editingKid.color='${t.color}';editingKid.bg='${t.bg}';editingKid.accent='${t.accent}';editingKid.light='${t.light}';render()" title="${t.label}" style="width:30px;height:30px;border-radius:50%;background:${t.color};border:3px solid ${editingKid.color===t.color?"#2d3436":"transparent"}"></button>`).join("");
+      const emojiGrid=EMOJI_OPTIONS.map((em,i)=>`<button class="emoji-opt" onclick="setEditKidEmoji(${i})">${em}</button>`).join("");
+      const swatches=THEMES.map((t,i)=>`<button class="btn" onclick="setEditKidTheme(${i})" title="${t.label}" style="width:30px;height:30px;border-radius:50%;background:${t.color};border:3px solid ${editingKid.color===t.color?"#2d3436":"transparent"}"></button>`).join("");
       return `
       <div class="card" style="background:white;padding:20px;margin-bottom:16px;border:2px solid #A29BFE">
         <div style="font-weight:900;font-size:16px;margin-bottom:16px;color:#6c5ce7">✏️ 編輯 ${esc(editingKid.name)} 的檔案</div>
@@ -661,7 +686,7 @@ function buildAdminProfile(){
           <div style="font-weight:900;font-size:20px;color:${k.accent}">${k.name}</div>
           <div style="font-size:13px;color:#aaa;font-weight:600">餘額 ${state.currency}${(state.balances[k.id]||0).toFixed(2)}</div>
         </div>
-        <button class="btn" onclick="editingKid={...${JSON.stringify(k)}};showEmojiPicker=null;render()" style="padding:10px 16px;background:#6c5ce7;color:white;border-radius:12px;font-size:14px">✏️ 編輯</button>
+        <button class="btn" onclick="startEditKid(${k.id})" style="padding:10px 16px;background:#6c5ce7;color:white;border-radius:12px;font-size:14px">✏️ 編輯</button>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
         ${THEMES.map(t=>`<button class="color-swatch btn" onclick="applyTheme(${k.id},'${t.color}','${t.bg}','${t.accent}','${t.light}')" title="${t.label}" style="background:${t.color};border-color:${k.color===t.color?"#2d3436":"transparent"}"></button>`).join("")}
@@ -691,7 +716,7 @@ function buildAdminProfile(){
 }
 
 function buildAdminSettings(){
-  const emojiGrid2=EMOJI_OPTIONS.map(em=>`<button class="emoji-opt" onclick="state.appEmoji='${em}';showEmojiPicker=null;save();render()">${em}</button>`).join("");
+  const emojiGrid2=EMOJI_OPTIONS.map((em,i)=>`<button class="emoji-opt" onclick="setAppEmoji(${i})">${em}</button>`).join("");
   return `
     <div class="section-header">🏠 App 設定</div>
     <div class="card" style="background:white;padding:20px;margin-bottom:16px">
