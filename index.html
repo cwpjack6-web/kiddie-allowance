@@ -274,10 +274,12 @@ function applyAdjust(kidId){
 }
 
 function startEditKid(kidId){
-  const k=state.kids.find(x=>x.id===kidId);
-  if(!k) return;
+  const id=Number(kidId);
+  const k=state.kids.find(x=>Number(x.id)===id);
+  if(!k){toast("找不到檔案","err");return;}
   editingKid={id:k.id,name:k.name,emoji:k.emoji,color:k.color,bg:k.bg,accent:k.accent,light:k.light};
   showEmojiPicker=null;
+  adminTab="profile";
   render();
 }
 function setEditKidEmoji(i){
@@ -659,7 +661,7 @@ function buildAdminTasks(){
 
 function buildAdminProfile(){
   const kidCards=state.kids.map(k=>{
-    if(editingKid&&editingKid.id===k.id){
+    if(editingKid&&Number(editingKid.id)===Number(k.id)){
       const emojiGrid=EMOJI_OPTIONS.map((em,i)=>`<button class="emoji-opt" onclick="setEditKidEmoji(${i})">${em}</button>`).join("");
       const swatches=THEMES.map((t,i)=>`<button class="btn" onclick="setEditKidTheme(${i})" title="${t.label}" style="width:30px;height:30px;border-radius:50%;background:${t.color};border:3px solid ${editingKid.color===t.color?"#2d3436":"transparent"}"></button>`).join("");
       return `
@@ -756,6 +758,19 @@ function buildAdminSettings(){
           <button class="btn" onclick="confirmPinChange()" style="flex:1;padding:10px;background:#6c5ce7;color:white;border-radius:12px">確認</button>
         </div>`}
     </div>
+    <div class="section-header" style="margin-top:4px">💾 資料備份</div>
+    <div class="card" style="background:white;padding:20px;margin-bottom:16px">
+      <div style="font-size:13px;color:#888;font-weight:600;margin-bottom:14px;line-height:1.6">匯出所有資料（餘額、任務、收支記錄）為 JSON 檔；匯入時會覆蓋現有資料。</div>
+      <div style="display:flex;gap:10px;margin-bottom:0">
+        <button class="btn" onclick="exportData()" style="flex:1;padding:12px;background:linear-gradient(135deg,#00B894,#55EFC4);color:white;border-radius:12px;font-size:14px">
+          📤 匯出 JSON
+        </button>
+        <button class="btn" onclick="document.getElementById('importFileInput').click()" style="flex:1;padding:12px;background:linear-gradient(135deg,#6c5ce7,#a29bfe);color:white;border-radius:12px;font-size:14px">
+          📥 匯入 JSON
+        </button>
+      </div>
+      <input type="file" id="importFileInput" accept=".json" style="display:none" onchange="importData(event)">
+    </div>
     <button class="btn" onclick="logout()" style="width:100%;padding:13px;background:#FFE0E0;color:#E17055;border-radius:14px;font-size:15px;margin-top:4px">🚪 登出家長模式</button>`;
 }
 
@@ -834,6 +849,68 @@ function buildAnalytics(){
       </div>
     </div>
   </div>`;
+}
+
+function exportData(){
+  const data = {
+    ...state,
+    _exported: new Date().toISOString(),
+    _version: 1,
+  };
+  delete data.adminMode;
+  const json = JSON.stringify(data, null, 2);
+  const blob = new Blob([json], {type: 'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const dateStr = new Date().toISOString().slice(0,10);
+  a.href = url;
+  a.download = `kiddie-allowance-backup-${dateStr}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('資料已匯出！ 📤');
+}
+
+function importData(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e){
+    try{
+      const data = JSON.parse(e.target.result);
+      // Basic validation
+      if(!data.kids || !data.tasks || !data.history || !data.balances){
+        toast('檔案格式不正確！','err'); return;
+      }
+      // Migrate tasks if needed (old format with boolean done)
+      if(data.tasks){
+        Object.keys(data.tasks).forEach(kid=>{
+          data.tasks[kid]=data.tasks[kid].map(t=>{
+            if(typeof t.target==='undefined'){
+              return {id:t.id,text:t.text,target:1,count:t.done?1:0};
+            }
+            return t;
+          });
+        });
+      }
+      // Confirm before overwrite
+      const confirmed = confirm('⚠️ 確認匯入？現有資料將會被覆蓋。');
+      if(!confirmed){ event.target.value=''; return; }
+      delete data.adminMode;
+      delete data._exported;
+      delete data._version;
+      state = {...defaultState(), ...data};
+      state.adminMode = true;
+      save();
+      view = 'admin';
+      adminTab = 'settings';
+      render();
+      toast('資料已匯入成功！ 📥');
+    } catch(err){
+      toast('讀取檔案失敗，請確認格式正確','err');
+    }
+    event.target.value = '';
+  };
+  reader.readAsText(file);
 }
 
 function esc(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");}
