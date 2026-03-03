@@ -110,6 +110,7 @@ function defaultState(){
       {id:2,name:"細仔",emoji:"🐧",color:"#4FC3F7",bg:"#E3F2FD",accent:"#0288D1",light:"#B3E5FC"},
     ],
     balances:{1:1.50,2:0.50},
+    avatars:{},  // kidId -> base64 data URL
     tasks:{
       1:[
         {id:1,text:"執好書枱",target:1,count:0},
@@ -145,6 +146,7 @@ function loadState(){
         });
       });
     }
+    if(!raw.avatars) raw.avatars={};
     return raw;
   }catch(e){return null;}
 }
@@ -167,6 +169,7 @@ let newExpenseAmt="";
 let newPinVal="";
 let adjustDesc="";
 let adjustAmt="";
+let showResetBalance=null; let resetAmt=""; let resetDesc="";
 
 function saveState(){const s={...state};delete s.adminMode;localStorage.setItem("allowanceApp",JSON.stringify(s));}
 function save(){saveState();}
@@ -179,6 +182,11 @@ const allDone=(id)=>{const kt=kidTasks(id);return kt.length>0&&kt.every(t=>taskD
 // For home card progress: count tasks fully done
 const doneTaskCount=(id)=>kidTasks(id).filter(t=>taskDone(t)).length;
 const fmtAmt=(n)=>`${state.currency}${Math.abs(n).toFixed(2)}`;
+function kidAvatar(k, size=52){
+  const av=(state.avatars||{})[k.id];
+  if(av) return `<img src="${av}" style="width:${size}px;height:${size}px;border-radius:50%;object-fit:cover;flex-shrink:0;border:3px solid ${k.color}">`;
+  return `<span style="font-size:${size}px;flex-shrink:0;line-height:1">${k.emoji}</span>`;
+}
 const today=()=>new Date().toISOString().slice(0,10);
 
 // ─── TOAST / CONFETTI ─────────────────────────────────────────────────────────
@@ -305,6 +313,48 @@ function saveKidProfile(){
   state.kids=state.kids.map(k=>k.id===editingKid.id?{...editingKid}:k);
   editingKid=null;showEmojiPicker=null;save();render();toast("檔案已更新！");
 }
+
+function confirmReset(kidId){
+  const amt=parseFloat(parseFloat(resetAmt||0).toFixed(2));
+  if(isNaN(amt)||amt<0){toast("請輸入有效起始金額","err");return;}
+  const desc=resetDesc.trim()||"重設起始餘額";
+  state.balances[kidId]=amt;
+  state.history[kidId]=amt>0?[{id:Date.now(),type:"income",desc,amount:amt,date:today()}]:[];
+  showResetBalance=null;showAdjustBalance=null;resetAmt="";resetDesc="";
+  save();render();
+  toast(kid(kidId).name+" 餘額已重設為 "+state.currency+amt.toFixed(2)+"！");
+}
+
+function uploadAvatar(kidId,event){
+  const file=event.target.files[0];
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    const img=new Image();
+    img.onload=function(){
+      const MAX=200;
+      const scale=Math.min(MAX/img.width,MAX/img.height,1);
+      const w=Math.round(img.width*scale),h=Math.round(img.height*scale);
+      const canvas=document.createElement("canvas");
+      canvas.width=w;canvas.height=h;
+      canvas.getContext("2d").drawImage(img,0,0,w,h);
+      const dataUrl=canvas.toDataURL("image/jpeg",0.72);
+      if(!state.avatars) state.avatars={};
+      state.avatars[kidId]=dataUrl;
+      save();render();toast("頭像已上傳！ 📷");
+    };
+    img.src=e.target.result;
+  };
+  reader.readAsDataURL(file);
+  event.target.value="";
+}
+
+function removeAvatar(kidId){
+  if(!state.avatars) return;
+  delete state.avatars[kidId];
+  save();render();toast("頭像已移除");
+}
+
 
 function applyTheme(kidId,color,bg,accent,light){
   state.kids=state.kids.map(k=>k.id===kidId?{...k,color,bg,accent,light}:k);
@@ -497,7 +547,7 @@ function buildHome(){
     return `
     <button class="btn card" onclick="goKid(${k.id})"
       style="background:${k.bg};padding:20px;text-align:left;border:3px solid ${k.color};display:flex;align-items:center;gap:16px;width:100%;margin-bottom:14px;">
-      <div style="font-size:52px;flex-shrink:0;animation:float 3s ease-in-out infinite">${k.emoji}</div>
+      <div style="flex-shrink:0;animation:float 3s ease-in-out infinite">${kidAvatar(k,52)}</div>
       <div style="flex:1">
         <div style="font-size:20px;font-weight:900;color:${k.accent}">${k.name}</div>
         <div style="font-size:30px;font-weight:900;color:#2d3436">${state.currency}${(state.balances[k.id]||0).toFixed(2)}</div>
@@ -554,7 +604,7 @@ function buildKid(){
       <div style="position:absolute;top:-20px;right:-20px;font-size:110px;opacity:.12">${k.emoji}</div>
       <button class="btn" onclick="view='home';render()" style="background:rgba(255,255,255,.3);border-radius:50%;width:36px;height:36px;font-size:18px;margin-bottom:12px;color:white">‹</button>
       <div style="display:flex;align-items:center;gap:14px">
-        <span style="font-size:52px">${k.emoji}</span>
+        ${kidAvatar(k,52)}
         <div>
           <div style="font-size:22px;font-weight:900;color:white">${k.name} 的帳戶</div>
           <div style="font-size:36px;font-weight:900;color:white">${state.currency}${(state.balances[selectedKid]||0).toFixed(2)}</div>
@@ -667,13 +717,33 @@ function buildAdminProfile(){
       return `
       <div class="card" style="background:white;padding:20px;margin-bottom:16px;border:2px solid #A29BFE">
         <div style="font-weight:900;font-size:16px;margin-bottom:16px;color:#6c5ce7">✏️ 編輯 ${esc(editingKid.name)} 的檔案</div>
+
         <div class="field-label">名稱</div>
-        <input class="ifield" value="${esc(editingKid.name)}" oninput="editingKid.name=this.value" style="margin-bottom:14px">
-        <div class="field-label">Icon</div>
-        <button class="btn" onclick="showEmojiPicker=showEmojiPicker?null:'kid';render()" style="font-size:40px;padding:8px 16px;background:#f8f8f8;border-radius:14px;border:2px solid #e0e0e0;margin-bottom:8px">${editingKid.emoji}</button>
-        ${showEmojiPicker==="kid"?`<div class="emoji-grid">${emojiGrid}</div>`:""}
+        <input class="ifield" value="${esc(editingKid.name)}" oninput="editingKid.name=this.value" style="margin-bottom:16px">
+
+        <div class="field-label">頭像</div>
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+          <div style="width:64px;height:64px;border-radius:50%;overflow:hidden;border:3px solid ${editingKid.color};background:#f8f8f8;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+            ${(state.avatars||{})[editingKid.id]
+              ? `<img src="${(state.avatars||{})[editingKid.id]}" style="width:100%;height:100%;object-fit:cover">`
+              : `<span style="font-size:38px">${editingKid.emoji}</span>`}
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px;flex:1">
+            <button class="btn" onclick="document.getElementById('avatarInput_${editingKid.id}').click()" style="padding:9px 14px;background:#6c5ce7;color:white;border-radius:12px;font-size:13px">📷 上傳圖片</button>
+            ${(state.avatars||{})[editingKid.id] ? `<button class="btn" onclick="removeAvatar(${editingKid.id})" style="padding:9px 14px;background:#FFE0E0;color:#E17055;border-radius:12px;font-size:13px">🗑️ 移除圖片</button>` : ""}
+          </div>
+          <input type="file" id="avatarInput_${editingKid.id}" accept="image/*" style="display:none" onchange="uploadAvatar(${editingKid.id}, event)">
+        </div>
+
+        <div class="field-label" style="margin-top:4px">Emoji Icon（冇上傳圖片時顯示）</div>
+        <div style="margin-bottom:4px">
+          <button class="btn" onclick="showEmojiPicker=showEmojiPicker?null:'kid';render()" style="font-size:36px;padding:8px 14px;background:#f8f8f8;border-radius:14px;border:2px solid #e0e0e0">${editingKid.emoji}</button>
+        </div>
+        ${showEmojiPicker==="kid"?`<div class="emoji-grid" style="margin-bottom:10px">${emojiGrid}</div>`:""}
+
         <div class="field-label" style="margin-top:14px">主題顏色</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">${swatches}</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px">${swatches}</div>
+
         <div style="display:flex;gap:10px">
           <button class="btn" onclick="editingKid=null;showEmojiPicker=null;render()" style="flex:1;padding:11px;background:#f0f0f0;border-radius:12px">取消</button>
           <button class="btn" onclick="saveKidProfile()" style="flex:1;padding:11px;background:linear-gradient(135deg,#A29BFE,#6c5ce7);color:white;border-radius:12px">儲存</button>
@@ -683,7 +753,7 @@ function buildAdminProfile(){
     return `
     <div class="card" style="background:white;padding:20px;margin-bottom:16px">
       <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px">
-        <div style="font-size:48px;background:${k.bg};border-radius:16px;padding:8px 12px;border:2px solid ${k.light}">${k.emoji}</div>
+        <div style="background:${k.bg};border-radius:16px;padding:8px 12px;border:2px solid ${k.light}">${kidAvatar(k,48)}</div>
         <div style="flex:1">
           <div style="font-weight:900;font-size:20px;color:${k.accent}">${k.name}</div>
           <div style="font-size:13px;color:#aaa;font-weight:600">餘額 ${state.currency}${(state.balances[k.id]||0).toFixed(2)}</div>
@@ -698,21 +768,63 @@ function buildAdminProfile(){
 
   const adjustPanel=`
   <div class="card" style="background:white;padding:20px;margin-bottom:16px">
-    <div class="section-header">💰 餘額調整</div>
-    <div style="display:flex;gap:8px;margin-bottom:12px">
-      ${state.kids.map(k=>`<button class="btn" onclick="showAdjustBalance=${k.id};adjustDesc='';adjustAmt='';render()" style="flex:1;padding:10px;border-radius:12px;background:${showAdjustBalance===k.id?k.color:k.bg};color:${showAdjustBalance===k.id?"white":k.accent};border:2px solid ${k.color};font-size:14px">${k.emoji} ${k.name}</button>`).join("")}
+    <div class="section-header">💰 餘額管理</div>
+
+    <!-- Kid selector -->
+    <div style="display:flex;gap:8px;margin-bottom:14px">
+      ${state.kids.map(k=>`
+        <button class="btn" onclick="showAdjustBalance=${k.id};showResetBalance=null;adjustDesc='';adjustAmt='';render()"
+          style="flex:1;padding:10px;border-radius:12px;background:${showAdjustBalance===k.id?k.color:k.bg};color:${showAdjustBalance===k.id?"white":k.accent};border:2px solid ${k.color};font-size:14px;display:flex;align-items:center;justify-content:center;gap:6px">
+          ${kidAvatar(k,22)} ${k.name}
+        </button>`).join("")}
     </div>
-    ${showAdjustBalance?`
-      <div style="font-size:13px;font-weight:700;color:#888;margin-bottom:10px">目前餘額：${state.currency}${(state.balances[showAdjustBalance]||0).toFixed(2)}</div>
-      <div class="field-label">備注</div>
-      <input class="ifield" placeholder="如：獎勵、罰款" value="${esc(adjustDesc)}" oninput="adjustDesc=this.value" style="margin-bottom:10px">
-      <div class="field-label">金額（正數增加 / 負數扣除）</div>
-      <div style="position:relative;margin-bottom:12px">
-        <span style="position:absolute;left:14px;top:50%;transform:translateY(-50%);font-weight:800;color:#6c5ce7">${state.currency}</span>
-        <input class="ifield" type="number" step="0.01" placeholder="0.00 或 -0.50" value="${adjustAmt}" oninput="adjustAmt=this.value" style="padding-left:32px">
+
+    ${showAdjustBalance ? `
+      <!-- Mode toggle -->
+      <div style="display:flex;gap:8px;margin-bottom:14px">
+        <button class="btn" onclick="showResetBalance=null;render()"
+          style="flex:1;padding:9px;border-radius:10px;font-size:13px;background:${!showResetBalance?"#6c5ce7":"#f0f0f0"};color:${!showResetBalance?"white":"#636e72"}">
+          ± 調整金額
+        </button>
+        <button class="btn" onclick="showResetBalance=showAdjustBalance;resetAmt='';resetDesc='重設起始餘額';render()"
+          style="flex:1;padding:9px;border-radius:10px;font-size:13px;background:${showResetBalance?"#E17055":"#f0f0f0"};color:${showResetBalance?"white":"#636e72"}">
+          🔄 清零重設
+        </button>
       </div>
-      <button class="btn" onclick="applyAdjust(${showAdjustBalance})" style="width:100%;padding:11px;background:#6c5ce7;color:white;border-radius:12px;font-size:15px">確認調整</button>
-    `:`<div style="text-align:center;padding:10px;color:#b2bec3;font-size:13px;font-weight:600">請選擇要調整餘額的孩子</div>`}
+
+      <div style="font-size:13px;font-weight:700;color:#888;margin-bottom:12px">
+        ${kid(showAdjustBalance).name} 目前餘額：<span style="color:#2d3436;font-weight:900">${state.currency}${(state.balances[showAdjustBalance]||0).toFixed(2)}</span>
+      </div>
+
+      ${!showResetBalance ? `
+        <!-- Adjust mode -->
+        <div class="field-label">備注</div>
+        <input class="ifield" placeholder="如：獎勵、罰款" value="${esc(adjustDesc)}" oninput="adjustDesc=this.value" style="margin-bottom:10px">
+        <div class="field-label">金額（正數增加 / 負數扣除）</div>
+        <div style="position:relative;margin-bottom:12px">
+          <span style="position:absolute;left:14px;top:50%;transform:translateY(-50%);font-weight:800;color:#6c5ce7">${state.currency}</span>
+          <input class="ifield" type="number" step="0.01" placeholder="0.00 或 -0.50" value="${adjustAmt}" oninput="adjustAmt=this.value" style="padding-left:32px">
+        </div>
+        <button class="btn" onclick="applyAdjust(${showAdjustBalance})" style="width:100%;padding:11px;background:#6c5ce7;color:white;border-radius:12px;font-size:15px">確認調整</button>
+      ` : `
+        <!-- Reset mode -->
+        <div style="padding:12px 14px;background:#FFF5F5;border-radius:12px;border:2px solid #FFDADA;margin-bottom:14px">
+          <div style="font-size:13px;font-weight:800;color:#E17055;margin-bottom:4px">⚠️ 清零重設</div>
+          <div style="font-size:12px;color:#888;font-weight:600;line-height:1.5">現有餘額及收支記錄將全部清除，以新金額重新開始。</div>
+        </div>
+        <div class="field-label">起始金額</div>
+        <div style="position:relative;margin-bottom:12px">
+          <span style="position:absolute;left:14px;top:50%;transform:translateY(-50%);font-weight:800;color:#E17055">${state.currency}</span>
+          <input class="ifield" type="number" step="0.01" min="0" placeholder="0.00" value="${resetAmt}" oninput="resetAmt=this.value" style="padding-left:32px;border-color:#FFDADA">
+        </div>
+        <div class="field-label">備注項目（顯示喺記錄入面）</div>
+        <input class="ifield" placeholder="如：重設起始餘額" value="${esc(resetDesc)}" oninput="resetDesc=this.value" style="margin-bottom:14px;border-color:#FFDADA">
+        <div style="display:flex;gap:10px">
+          <button class="btn" onclick="showResetBalance=null;render()" style="flex:1;padding:11px;background:#f0f0f0;border-radius:12px">取消</button>
+          <button class="btn" onclick="confirmReset(${showAdjustBalance})" style="flex:1;padding:11px;background:#E17055;color:white;border-radius:12px">確認清零重設</button>
+        </div>
+      `}
+    ` : `<div style="text-align:center;padding:10px;color:#b2bec3;font-size:13px;font-weight:600">請選擇要管理餘額的孩子</div>`}
   </div>`;
   return kidCards+adjustPanel;
 }
