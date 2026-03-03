@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>零用錢寶庫</title>
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="零用錢">
+<meta name="theme-color" content="#FF9F43">
+<meta name="description" content="小朋友的零用錢及任務管理">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="apple-touch-icon" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" sizes="512x512" href="icon-512.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap');
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Nunito',cursive,sans-serif;background:linear-gradient(135deg,#ffecd2 0%,#fcb69f 50%,#a1c4fd 100%);min-height:100vh;min-height:100dvh;overflow-x:hidden;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom);padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right);}
+#app{max-width:440px;margin:0 auto;min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;}
+#installBanner{display:none;position:fixed;bottom:calc(20px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);background:white;border-radius:18px;padding:14px 20px;box-shadow:0 8px 32px rgba(0,0,0,.18);z-index:9990;width:calc(100% - 48px);max-width:380px;align-items:center;gap:12px;}
+#installBanner.show{display:flex;}
+.btn{cursor:pointer;border:none;outline:none;transition:all .15s;font-family:inherit;font-weight:800;}
+.btn:hover{transform:translateY(-2px);filter:brightness(1.05);}
+.btn:active{transform:scale(.97);}
+.card{border-radius:20px;box-shadow:0 4px 20px rgba(0,0,0,.1);}
+input,select{font-family:inherit;outline:none;}
+input:focus,select:focus{border-color:#a29bfe!important;box-shadow:0 0 0 3px rgba(162,155,254,.2);}
+.ifield{width:100%;padding:10px 14px;border-radius:12px;border:2px solid #e0e0e0;font-size:15px;}
+.field-label{font-size:11px;font-weight:800;color:#999;text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;}
+.section-header{display:flex;align-items:center;gap:8px;margin-bottom:16px;padding-bottom:10px;border-bottom:2px solid #f0f0f0;font-size:17px;font-weight:900;color:#2d3436;}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+@keyframes slideUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
+@keyframes confettiFall{0%{transform:translateY(-20px) rotate(0deg);opacity:1}100%{transform:translateY(110vh) rotate(720deg);opacity:0}}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+@keyframes popIn{0%{transform:scale(0.5);opacity:0}70%{transform:scale(1.2)}100%{transform:scale(1);opacity:1}}
+.float-anim{animation:float 3s ease-in-out infinite;}
+.slide-up{animation:slideUp .3s ease;}
+.pulse-anim{animation:pulse 1.2s ease-in-out infinite;}
+.pop-in{animation:popIn .3s ease forwards;}
+#toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);padding:12px 24px;border-radius:50px;font-weight:700;font-size:15px;box-shadow:0 4px 20px rgba(0,0,0,.2);z-index:9999;display:none;white-space:nowrap;}
+.confetti-piece{position:fixed;top:-20px;pointer-events:none;z-index:9998;}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:8000;padding:20px;}
+.modal-box{background:white;border-radius:24px;padding:28px;width:100%;max-width:380px;max-height:90vh;overflow-y:auto;animation:slideUp .3s ease;}
+.tab-bar{display:grid;gap:6px;padding:12px 16px;background:white;border-bottom:2px solid #f0f0f0;}
+.tab-btn{padding:9px 0;font-weight:800;font-size:13px;border-radius:10px;border:none;cursor:pointer;font-family:inherit;transition:all .2s;}
+.emoji-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:4px;max-height:180px;overflow-y:auto;padding:8px;background:#f8f8f8;border-radius:12px;border:1px solid #e0e0e0;margin-top:8px;}
+.emoji-opt{font-size:22px;padding:4px;border-radius:8px;cursor:pointer;text-align:center;border:none;background:transparent;transition:background .15s;}
+.emoji-opt:hover{background:#e0e0e0;}
+.progress-bar{background:rgba(0,0,0,.08);border-radius:50px;height:10px;overflow:hidden;margin:10px 0;}
+.progress-fill{height:100%;border-radius:50px;transition:width .5s ease;}
+/* ── Dot counter ── */
+.dot-row{display:flex;gap:5px;flex-wrap:wrap;align-items:center;}
+.dot{width:18px;height:18px;border-radius:50%;border:2.5px solid #ddd;background:white;flex-shrink:0;transition:all .25s;cursor:default;}
+.dot.lit{background:var(--dot-color);border-color:var(--dot-color);box-shadow:0 0 6px var(--dot-color);}
+.dot.admin-tap{cursor:pointer;}
+.dot.admin-tap:hover{transform:scale(1.2);}
+/* ── Task rows ── */
+.task-row{display:flex;align-items:flex-start;gap:10px;padding:13px 14px;border-radius:16px;margin-bottom:8px;border:2px solid #e0e0e0;background:white;transition:all .2s;}
+.task-done-check{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:900;color:white;flex-shrink:0;margin-top:1px;transition:all .25s;}
+.history-row{display:flex;align-items:center;gap:12px;padding:13px 16px;border-radius:16px;margin-bottom:8px;background:white;}
+::-webkit-scrollbar{width:4px;}::-webkit-scrollbar-thumb{background:#ddd;border-radius:4px;}
+.chart-container{position:relative;height:200px;}
+.stat-box{flex:1;background:#f8f8f8;border-radius:14px;padding:14px;text-align:center;}
+.color-swatch{width:28px;height:28px;border-radius:50%;cursor:pointer;border:3px solid transparent;transition:all .2s;}
+.color-swatch:hover{transform:scale(1.15);}
+/* freq selector pills */
+.freq-pill{padding:6px 12px;border-radius:20px;font-size:13px;font-weight:800;border:2px solid #e0e0e0;background:white;cursor:pointer;transition:all .15s;}
+.freq-pill.active{color:white;border-color:transparent;}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="toast"></div>
+<div id="installBanner">
+  <span style="font-size:32px">🐷</span>
+  <div style="flex:1"><div style="font-weight:900;font-size:14px;color:#2d3436">加入主畫面</div><div style="font-size:12px;color:#aaa;font-weight:600">安裝為 App，隨時使用</div></div>
+  <button onclick="installApp()" style="background:#FF9F43;color:white;border:none;border-radius:10px;padding:8px 16px;font-weight:800;font-size:13px;cursor:pointer;font-family:inherit">安裝</button>
+  <button onclick="document.getElementById('installBanner').classList.remove('show')" style="background:#f0f0f0;border:none;border-radius:50%;width:28px;height:28px;font-size:14px;cursor:pointer">✕</button>
+</div>
+
+<script>
+// ─── CONSTANTS ───────────────────────────────────────────────────────────────
+const EMOJI_OPTIONS=["🦁","🐯","🐻","🐼","🐨","🐸","🦊","🐺","🦝","🐷","🐮","🐔","🐧","🦆","🦉","🐢","🦕","🐉","🦄","🐬","🦋","🐝","🌟","⭐","🌈","🎠","🚀","🎮","🎯","🏆"];
+const THEMES=[
+  {label:"橙獅",color:"#FF9F43",bg:"#FFF3E0",accent:"#E67E22",light:"#FFE0B2"},
+  {label:"藍企",color:"#4FC3F7",bg:"#E3F2FD",accent:"#0288D1",light:"#B3E5FC"},
+  {label:"紫夢",color:"#A29BFE",bg:"#F3F0FF",accent:"#6C5CE7",light:"#D4CBFF"},
+  {label:"粉紅",color:"#FD79A8",bg:"#FFF0F5",accent:"#E84393",light:"#FFB3D9"},
+  {label:"綠意",color:"#55EFC4",bg:"#E8FBF5",accent:"#00B894",light:"#B2F0E0"},
+  {label:"紅火",color:"#FF7675",bg:"#FFF5F5",accent:"#D63031",light:"#FFDADA"},
+];
+
+// ─── DEFAULT STATE ────────────────────────────────────────────────────────────
+// Task shape: {id, text, target:1, count:0}
+// target = how many times needed per week (1 = classic single checkbox)
+// count  = how many times done so far this week
+// done   = derived: count >= target
+
+function defaultState(){
+  return {
+    appTitle:"零用錢寶庫", appEmoji:"🐷", currency:"£",
+    weeklyAllowance:1.00, taskLabel:"本週任務",
+    allowanceLabel:"完成所有任務可獲", pin:"1234",
+    kids:[
+      {id:1,name:"大仔",emoji:"🦁",color:"#FF9F43",bg:"#FFF3E0",accent:"#E67E22",light:"#FFE0B2"},
+      {id:2,name:"細仔",emoji:"🐧",color:"#4FC3F7",bg:"#E3F2FD",accent:"#0288D1",light:"#B3E5FC"},
+    ],
+    balances:{1:1.50,2:0.50},
+    tasks:{
+      1:[
+        {id:1,text:"執好書枱",target:1,count:0},
+        {id:2,text:"温習30分鐘",target:3,count:0},
+        {id:3,text:"倒垃圾",target:2,count:0},
+      ],
+      2:[
+        {id:1,text:"執玩具",target:1,count:0},
+        {id:2,text:"練琴15分鐘",target:5,count:0},
+        {id:3,text:"幫手洗碗",target:3,count:0},
+      ],
+    },
+    history:{
+      1:[{id:1,type:"income",desc:"完成本週任務 🎉",amount:1.00,date:"2026-02-23"},{id:2,type:"expense",desc:"買零食",amount:-0.50,date:"2026-02-25"}],
+      2:[{id:1,type:"income",desc:"完成本週任務 🎉",amount:1.00,date:"2026-02-23"}],
+    },
+  };
+}
+
+// ─── LOAD / MIGRATE STATE ────────────────────────────────────────────────────
+function loadState(){
+  try{
+    const raw=JSON.parse(localStorage.getItem("allowanceApp")||"null");
+    if(!raw) return null;
+    // Migrate old tasks that used boolean `done` to new {target,count} shape
+    if(raw.tasks){
+      Object.keys(raw.tasks).forEach(kid=>{
+        raw.tasks[kid]=raw.tasks[kid].map(t=>{
+          if(typeof t.target==="undefined"){
+            return {id:t.id,text:t.text,target:1,count:t.done?1:0};
+          }
+          return t;
+        });
+      });
+    }
+    return raw;
+  }catch(e){return null;}
+}
+
+let state = loadState() || defaultState();
+
+// ─── UI STATE (not persisted) ─────────────────────────────────────────────────
+let view="home";
+let selectedKid=null;
+let adminTab="tasks";
+let analyticsKid=null;
+let showEmojiPicker=null;
+let editingKid=null;
+let editingPin=false;
+let showAdjustBalance=null;
+let newTaskText="";
+let newTaskTarget=1;         // for add-task UI
+let newExpenseDesc="";
+let newExpenseAmt="";
+let newPinVal="";
+let adjustDesc="";
+let adjustAmt="";
+
+function saveState(){const s={...state};delete s.adminMode;localStorage.setItem("allowanceApp",JSON.stringify(s));}
+function save(){saveState();}
+
+// ─── DERIVED ──────────────────────────────────────────────────────────────────
+const kid=(id)=>state.kids.find(k=>k.id===id);
+const kidTasks=(id)=>state.tasks[id]||[];
+const taskDone=(t)=>t.count>=t.target;
+const allDone=(id)=>{const kt=kidTasks(id);return kt.length>0&&kt.every(t=>taskDone(t));};
+// For home card progress: count tasks fully done
+const doneTaskCount=(id)=>kidTasks(id).filter(t=>taskDone(t)).length;
+const fmtAmt=(n)=>`${state.currency}${Math.abs(n).toFixed(2)}`;
+const today=()=>new Date().toISOString().slice(0,10);
+
+// ─── TOAST / CONFETTI ─────────────────────────────────────────────────────────
+let toastTimer;
+function toast(msg,type="ok"){
+  const el=document.getElementById("toast");
+  el.textContent=msg;
+  el.style.background=type==="err"?"#FF6B6B":"#55EFC4";
+  el.style.color=type==="err"?"white":"#2d3436";
+  el.style.display="block";
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>{el.style.display="none";},3000);
+}
+function fireConfetti(){
+  const colors=["#FF9F43","#4FC3F7","#A29BFE","#55EFC4","#FD79A8","#FDCB6E"];
+  for(let i=0;i<35;i++){
+    const el=document.createElement("div");
+    el.className="confetti-piece";
+    const sz=Math.random()*10+6;
+    el.style.cssText=`left:${Math.random()*100}%;width:${sz}px;height:${sz}px;background:${colors[Math.floor(Math.random()*colors.length)]};border-radius:${Math.random()>.5?"50%":"3px"};animation:confettiFall ${1.5+Math.random()*.6}s ease-in ${Math.random()*.4}s forwards;`;
+    document.body.appendChild(el);
+    setTimeout(()=>el.remove(),3000);
+  }
+}
+
+// ─── ACTIONS ──────────────────────────────────────────────────────────────────
+// Tap a dot: increment count (admin only), wraps back to 0 after target
+function tapDot(kidId,taskId,dotIndex){
+  if(!state.adminMode) return;
+  state.tasks[kidId]=state.tasks[kidId].map(t=>{
+    if(t.id!==taskId) return t;
+    // Clicking dot at dotIndex:
+    // if dotIndex < count → decrease count to dotIndex (un-check this and above)
+    // if dotIndex >= count → increase count to dotIndex+1 (check up to here)
+    const newCount = dotIndex < t.count ? dotIndex : dotIndex+1;
+    return {...t, count: Math.min(newCount, t.target)};
+  });
+  save(); render();
+}
+
+function completeWeek(kidId){
+  if(!allDone(kidId)){toast("仲有任務未完成！","err");return;}
+  state.balances[kidId]=parseFloat((state.balances[kidId]+state.weeklyAllowance).toFixed(2));
+  const entry={id:Date.now(),type:"income",desc:`${state.allowanceLabel} 🎉`,amount:state.weeklyAllowance,date:today()};
+  state.history[kidId]=[entry,...state.history[kidId]];
+  // Reset all task counts
+  state.tasks[kidId]=state.tasks[kidId].map(t=>({...t,count:0}));
+  fireConfetti();save();render();
+  toast(`太棒了！${fmtAmt(state.weeklyAllowance)} 已存入 ${kid(kidId).name} 的帳戶！ 🎉`);
+}
+
+function addTask(kidId){
+  const text=newTaskText.trim();
+  if(!text){toast("請輸入任務名稱","err");return;}
+  const target=Math.max(1,Math.min(7,parseInt(newTaskTarget)||1));
+  state.tasks[kidId]=[...(state.tasks[kidId]||[]),{id:Date.now(),text,target,count:0}];
+  newTaskText="";newTaskTarget=1;
+  save();render();toast("任務已新增！");
+}
+
+function removeTask(kidId,taskId){
+  state.tasks[kidId]=state.tasks[kidId].filter(t=>t.id!==taskId);
+  save();render();
+}
+
+function addExpense(kidId){
+  if(!newExpenseDesc||!newExpenseAmt){toast("請填寫描述及金額","err");return;}
+  const amt=parseFloat(parseFloat(newExpenseAmt).toFixed(2));
+  if(isNaN(amt)||amt<=0){toast("請輸入有效金額","err");return;}
+  if(amt>state.balances[kidId]){toast("餘額不足！","err");return;}
+  state.balances[kidId]=parseFloat((state.balances[kidId]-amt).toFixed(2));
+  state.history[kidId]=[{id:Date.now(),type:"expense",desc:newExpenseDesc,amount:-amt,date:today()},...state.history[kidId]];
+  newExpenseDesc="";newExpenseAmt="";
+  save();render();toast("支出已記錄！");
+}
+
+function deleteHistory(kidId,entryId){
+  const e=state.history[kidId].find(x=>x.id===entryId);
+  if(!e) return;
+  state.balances[kidId]=parseFloat((state.balances[kidId]-e.amount).toFixed(2));
+  state.history[kidId]=state.history[kidId].filter(x=>x.id!==entryId);
+  save();render();toast("記錄已刪除");
+}
+
+function applyAdjust(kidId){
+  if(!adjustDesc.trim()||!adjustAmt){toast("請填寫備注及金額","err");return;}
+  const amt=parseFloat(parseFloat(adjustAmt).toFixed(2));
+  if(isNaN(amt)||amt===0){toast("請輸入有效金額","err");return;}
+  state.balances[kidId]=parseFloat((state.balances[kidId]+amt).toFixed(2));
+  state.history[kidId]=[{id:Date.now(),type:amt>0?"income":"expense",desc:adjustDesc.trim(),amount:amt,date:today()},...state.history[kidId]];
+  adjustDesc="";adjustAmt="";showAdjustBalance=null;
+  save();render();toast("餘額已調整！");
+}
+
+function saveKidProfile(){
+  if(!editingKid) return;
+  state.kids=state.kids.map(k=>k.id===editingKid.id?{...editingKid}:k);
+  editingKid=null;showEmojiPicker=null;save();render();toast("檔案已更新！");
+}
+
+function applyTheme(kidId,color,bg,accent,light){
+  state.kids=state.kids.map(k=>k.id===kidId?{...k,color,bg,accent,light}:k);
+  save();render();toast("主題已更新！");
+}
+
+function confirmPinChange(){
+  if(newPinVal.length<4){toast("請輸入4位密碼！","err");return;}
+  state.pin=newPinVal;editingPin=false;newPinVal="";save();render();toast("密碼已更新！");
+}
+
+function logout(){state.adminMode=false;view="home";render();}
+function goKid(id){selectedKid=id;view="kid";newExpenseDesc="";newExpenseAmt="";render();}
+function goAdmin(){view="admin";render();}
+function goAnalytics(id){analyticsKid=id;view="analytics";render();}
+
+// ─── MODALS ────────────────────────────────────────────────────────────────────
+function showPinModal(){
+  const ov=document.createElement("div");
+  ov.className="modal-overlay";ov.id="pinOv";
+  ov.innerHTML=`<div class="modal-box" style="max-width:320px;text-align:center">
+    <div style="font-size:48px;margin-bottom:12px">🔐</div>
+    <div style="font-size:20px;font-weight:800;margin-bottom:20px;color:#2d3436">家長密碼</div>
+    <input id="pinInp" type="password" maxlength="6" class="ifield" placeholder="輸入密碼" style="letter-spacing:8px;font-size:24px;text-align:center;margin-bottom:16px;border-color:#A29BFE">
+    <div style="display:flex;gap:12px">
+      <button class="btn" onclick="document.getElementById('pinOv').remove()" style="flex:1;padding:12px;background:#f0f0f0;border-radius:12px;font-size:16px">取消</button>
+      <button class="btn" onclick="checkPin()" style="flex:1;padding:12px;background:#A29BFE;color:white;border-radius:12px;font-size:16px">確認</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  setTimeout(()=>document.getElementById("pinInp")?.focus(),100);
+  ov.addEventListener("keydown",e=>{if(e.key==="Enter")checkPin();});
+}
+function checkPin(){
+  const v=document.getElementById("pinInp")?.value||"";
+  if(v===state.pin){state.adminMode=true;document.getElementById("pinOv")?.remove();view="admin";render();}
+  else{toast("密碼錯誤！","err");document.getElementById("pinInp").value="";}
+}
+
+// Edit task modal — now includes target selector
+function openEditTask(kidId,taskId){
+  const t=(state.tasks[kidId]||[]).find(x=>x.id===taskId);
+  if(!t) return;
+  const ov=document.createElement("div");
+  ov.className="modal-overlay";ov.id="editTaskOv";
+  const pills=[1,2,3,4,5,6,7].map(n=>`
+    <button class="btn freq-pill ${t.target===n?"active":""}" id="fp${n}"
+      onclick="setEditTarget(${n})"
+      style="${t.target===n?"background:var(--ec);border-color:var(--ec);color:white;":""}">${n}次</button>`).join("");
+  ov.innerHTML=`<div class="modal-box" style="max-width:360px" id="etBox">
+    <div style="font-size:18px;font-weight:900;margin-bottom:16px">✏️ 編輯任務</div>
+    <div class="field-label">任務名稱</div>
+    <input id="etInp" class="ifield" value="${esc(t.text)}" style="margin-bottom:16px">
+    <div class="field-label">每週需完成次數</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:20px">${pills}</div>
+    <div style="display:flex;gap:10px">
+      <button class="btn" onclick="document.getElementById('etOv')||document.getElementById('editTaskOv').remove()" style="flex:1;padding:11px;background:#f0f0f0;border-radius:12px" onclick="document.getElementById('editTaskOv').remove()">取消</button>
+      <button class="btn" onclick="confirmTaskEdit(${kidId},${taskId})" style="flex:1;padding:11px;background:#A29BFE;color:white;border-radius:12px">儲存</button>
+    </div>
+  </div>`;
+  // Store edit target in closure
+  window._editTarget = t.target;
+  window._editColor = kid(kidId)?.color||"#A29BFE";
+  document.body.appendChild(ov);
+  // Apply color var
+  ov.querySelectorAll(".freq-pill").forEach(el=>el.style.setProperty("--ec", window._editColor));
+  const box=document.getElementById("etBox");
+  box.style.setProperty("--ec", window._editColor);
+  setTimeout(()=>{const inp=document.getElementById("etInp");inp?.focus();inp?.select();},80);
+  ov.addEventListener("keydown",e=>{if(e.key==="Enter")confirmTaskEdit(kidId,taskId);});
+}
+function setEditTarget(n){
+  window._editTarget=n;
+  document.querySelectorAll(".freq-pill").forEach(el=>{
+    const isActive=el.id===`fp${n}`;
+    el.classList.toggle("active",isActive);
+    el.style.background=isActive?window._editColor:"white";
+    el.style.borderColor=isActive?window._editColor:"#e0e0e0";
+    el.style.color=isActive?"white":"inherit";
+  });
+}
+function confirmTaskEdit(kidId,taskId){
+  const text=document.getElementById("etInp")?.value?.trim()||"";
+  if(!text) return;
+  const target=window._editTarget||1;
+  state.tasks[kidId]=state.tasks[kidId].map(t=>t.id===taskId?{...t,text,target,count:Math.min(t.count,target)}:t);
+  document.getElementById("editTaskOv")?.remove();
+  save();render();toast("任務已更新！");
+}
+
+// ─── DOT RENDERER ─────────────────────────────────────────────────────────────
+// Returns HTML string for the dot-counter row of a task
+function buildDots(t, kidColor, isAdmin){
+  if(t.target===1){
+    // Single checkbox mode — big tick button
+    const done=t.count>=1;
+    return `<div class="task-done-check"
+      style="background:${done?kidColor:"white"};border:2.5px solid ${done?kidColor:"#ddd"};width:28px;height:28px;border-radius:50%;${isAdmin?"cursor:pointer;":""}"
+      ${isAdmin?`onclick="tapDot(${t._kidId},${t.id},0)"`:""}>
+      ${done?`<span style="color:white;font-size:15px;font-weight:900">✓</span>`:""}
+    </div>`;
+  }
+  // Multi-count mode
+  const done=t.count>=t.target;
+  const dots=Array.from({length:t.target},(_,i)=>{
+    const lit=i<t.count;
+    return `<div class="dot${lit?" lit":""}${isAdmin?" admin-tap":""}"
+      style="--dot-color:${kidColor};"
+      ${isAdmin?`onclick="tapDot(${t._kidId},${t.id},${i})"`:""}>
+    </div>`;
+  }).join("");
+  return `
+    <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start">
+      <div class="dot-row">${dots}</div>
+      ${done?`<div style="font-size:10px;font-weight:800;color:${kidColor};letter-spacing:.5px">✓ 完成！</div>`:
+              `<div style="font-size:10px;font-weight:700;color:#bbb">${t.count}/${t.target}</div>`}
+    </div>`;
+}
+
+// ─── TASK ROW BUILDER ─────────────────────────────────────────────────────────
+function buildTaskRow(t, k, isAdmin){
+  t._kidId = k.id; // attach for dot handlers
+  const done=taskDone(t);
+  const dots=buildDots(t, k.color, isAdmin);
+  return `
+  <div class="task-row" style="background:${done?k.color+"18":"white"};border-color:${done?k.color:"#e0e0e0"};align-items:center;">
+    ${dots}
+    <span style="flex:1;font-weight:700;color:#2d3436;font-size:15px;margin-left:${t.target===1?4:0}px;text-decoration:${done?"line-through":"none"};opacity:${done?.55:1}">${esc(t.text)}</span>
+    ${isAdmin?`
+      <button class="btn" onclick="openEditTask(${k.id},${t.id})" style="background:#EEF2FF;border-radius:50%;width:28px;height:28px;font-size:13px;color:#6c5ce7;flex-shrink:0">✏️</button>
+      <button class="btn" onclick="removeTask(${k.id},${t.id})" style="background:#FFE0E0;border-radius:50%;width:28px;height:28px;font-size:13px;color:#FF6B6B;flex-shrink:0;margin-left:4px">✕</button>`:""
+    }
+  </div>`;
+}
+
+// ─── ADD TASK FORM (inline) ───────────────────────────────────────────────────
+function buildAddTaskForm(kidId, kidColor){
+  const pills=[1,2,3,4,5,6,7].map(n=>`
+    <button class="btn freq-pill ${newTaskTarget===n?"active":""}"
+      onclick="newTaskTarget=${n};renderAddPills(${kidId},'${kidColor}')"
+      style="${newTaskTarget===n?`background:${kidColor};border-color:${kidColor};color:white;`:""}">
+      ${n}次
+    </button>`).join("");
+  return `
+  <div style="margin-top:4px;padding:14px;background:#f8f8f8;border-radius:14px;border:2px dashed ${kidColor}40">
+    <div class="field-label" style="margin-bottom:8px">新增任務</div>
+    <input id="newTaskInp_${kidId}" class="ifield" placeholder="任務名稱..." value="${esc(newTaskText)}"
+      oninput="newTaskText=this.value"
+      onkeydown="if(event.key==='Enter')addTask(${kidId})"
+      style="margin-bottom:10px;border-color:${kidColor}">
+    <div class="field-label" style="margin-bottom:8px">每週需完成次數</div>
+    <div id="addPills_${kidId}" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">${pills}</div>
+    <button class="btn" onclick="addTask(${kidId})"
+      style="width:100%;padding:10px;background:${kidColor};color:white;border-radius:12px;font-size:15px">
+      + 新增任務
+    </button>
+  </div>`;
+}
+
+function renderAddPills(kidId, kidColor){
+  const container=document.getElementById(`addPills_${kidId}`);
+  if(!container) return;
+  container.innerHTML=[1,2,3,4,5,6,7].map(n=>`
+    <button class="btn freq-pill ${newTaskTarget===n?"active":""}"
+      onclick="newTaskTarget=${n};renderAddPills(${kidId},'${kidColor}')"
+      style="${newTaskTarget===n?`background:${kidColor};border-color:${kidColor};color:white;`:""}">
+      ${n}次
+    </button>`).join("");
+}
+
+// ─── PAGE BUILDERS ────────────────────────────────────────────────────────────
+function render(){
+  document.getElementById("app").innerHTML=buildPage();
+  if(view==="analytics"&&analyticsKid) renderChart(analyticsKid);
+}
+function buildPage(){
+  if(view==="home") return buildHome();
+  if(view==="kid")  return buildKid();
+  if(view==="admin") return buildAdmin();
+  if(view==="analytics") return buildAnalytics();
+  return "";
+}
+
+// HOME
+function buildHome(){
+  const cards=state.kids.map(k=>{
+    const kt=kidTasks(k.id);
+    const done=doneTaskCount(k.id);
+    const pct=kt.length?Math.round(done/kt.length*100):0;
+    return `
+    <button class="btn card" onclick="goKid(${k.id})"
+      style="background:${k.bg};padding:20px;text-align:left;border:3px solid ${k.color};display:flex;align-items:center;gap:16px;width:100%;margin-bottom:14px;">
+      <div style="font-size:52px;flex-shrink:0;animation:float 3s ease-in-out infinite">${k.emoji}</div>
+      <div style="flex:1">
+        <div style="font-size:20px;font-weight:900;color:${k.accent}">${k.name}</div>
+        <div style="font-size:30px;font-weight:900;color:#2d3436">${state.currency}${(state.balances[k.id]||0).toFixed(2)}</div>
+        <div style="margin-top:8px">
+          <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;color:${k.accent};margin-bottom:4px">
+            <span>${state.taskLabel}</span><span>${done}/${kt.length}</span>
+          </div>
+          <div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${k.color}"></div></div>
+        </div>
+      </div>
+      <div style="font-size:24px;color:${k.color}">›</div>
+    </button>`;
+  }).join("");
+  return `
+  <div style="padding:24px;flex:1">
+    <div style="text-align:center;padding-top:24px;margin-bottom:28px">
+      <div class="float-anim" style="font-size:64px;margin-bottom:8px">${state.appEmoji}</div>
+      <h1 style="font-size:28px;font-weight:900;color:#2d3436;text-shadow:2px 2px 0 white">${state.appTitle}</h1>
+      <p style="color:#636e72;font-weight:600;margin-top:4px">小朋友的理財小助手 ✨</p>
+    </div>
+    <div style="text-align:center;margin-bottom:20px">
+      <span style="background:white;border-radius:50px;padding:8px 20px;font-weight:800;color:#6c5ce7;font-size:14px;box-shadow:0 2px 12px rgba(108,92,231,.15)">
+        💷 ${state.allowanceLabel} ${state.currency}${state.weeklyAllowance.toFixed(2)}
+      </span>
+    </div>
+    ${cards}
+    <button class="btn card" onclick="${state.adminMode?"goAdmin()":"showPinModal()"}"
+      style="width:100%;padding:16px;background:white;border:3px dashed #A29BFE;display:flex;align-items:center;justify-content:center;gap:10px">
+      <span style="font-size:24px">${state.adminMode?"⚙️":"🔐"}</span>
+      <span style="font-weight:800;color:#6c5ce7;font-size:16px">${state.adminMode?"家長管理中心":"家長登入"}</span>
+    </button>
+    ${state.adminMode?`<button class="btn" onclick="logout()" style="width:100%;margin-top:12px;padding:10px;background:transparent;color:#b2bec3;font-size:14px">登出家長模式</button>`:""}
+  </div>`;
+}
+
+// KID VIEW
+function buildKid(){
+  const k=kid(selectedKid);
+  const kt=kidTasks(selectedKid);
+  const done=doneTaskCount(selectedKid);
+  const pct=kt.length?done/kt.length*100:0;
+  const ad=allDone(selectedKid);
+  const taskRows=kt.map(t=>buildTaskRow(t,k,state.adminMode)).join("");
+  const histRows=(state.history[selectedKid]||[]).map(e=>`
+    <div class="history-row card" style="border:2px solid ${e.amount>0?"#55EFC4":"#FFB3BA"}">
+      <span style="font-size:26px">${e.amount>0?"💰":"🛍️"}</span>
+      <div style="flex:1"><div style="font-weight:700;color:#2d3436">${esc(e.desc)}</div><div style="font-size:12px;color:#b2bec3;font-weight:600">${e.date}</div></div>
+      <div style="font-weight:900;font-size:17px;color:${e.amount>0?"#00B894":"#E17055"}">${e.amount>0?"+":"-"}${fmtAmt(e.amount)}</div>
+      ${state.adminMode?`<button class="btn" onclick="deleteHistory(${selectedKid},${e.id})" style="background:#FFE0E0;border-radius:50%;width:26px;height:26px;font-size:12px;color:#FF6B6B;margin-left:4px">✕</button>`:""}
+    </div>`).join("");
+  return `
+  <div style="flex:1;display:flex;flex-direction:column">
+    <div style="background:${k.color};padding:20px 24px 36px;position:relative;overflow:hidden">
+      <div style="position:absolute;top:-20px;right:-20px;font-size:110px;opacity:.12">${k.emoji}</div>
+      <button class="btn" onclick="view='home';render()" style="background:rgba(255,255,255,.3);border-radius:50%;width:36px;height:36px;font-size:18px;margin-bottom:12px;color:white">‹</button>
+      <div style="display:flex;align-items:center;gap:14px">
+        <span style="font-size:52px">${k.emoji}</span>
+        <div>
+          <div style="font-size:22px;font-weight:900;color:white">${k.name} 的帳戶</div>
+          <div style="font-size:36px;font-weight:900;color:white">${state.currency}${(state.balances[selectedKid]||0).toFixed(2)}</div>
+        </div>
+        <button class="btn" onclick="goAnalytics(${selectedKid})" style="margin-left:auto;background:rgba(255,255,255,.25);border-radius:14px;padding:8px 14px;color:white;font-size:13px;font-weight:800">📊 分析</button>
+      </div>
+    </div>
+    <div style="flex:1;background:white;border-radius:24px 24px 0 0;margin-top:-16px;padding:24px;overflow-y:auto">
+      <div class="card" style="background:${k.bg};padding:20px;margin-bottom:20px;border:2px solid ${k.light}">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <div style="font-size:18px;font-weight:900;color:${k.accent}">📋 ${state.taskLabel}</div>
+          <div style="font-size:13px;font-weight:700;color:white;background:${k.color};padding:4px 12px;border-radius:50px">${done}/${kt.length}</div>
+        </div>
+        <div style="font-size:13px;font-weight:700;color:${k.accent};opacity:.8;margin-bottom:10px">${state.allowanceLabel} 💷 ${state.currency}${state.weeklyAllowance.toFixed(2)}</div>
+        <div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${k.color}"></div></div>
+        <div style="margin-top:14px;display:flex;flex-direction:column;gap:0">
+          ${taskRows||`<div style="text-align:center;padding:16px;color:#b2bec3;font-weight:600">未有任務 🌟</div>`}
+        </div>
+        ${state.adminMode?`
+          ${buildAddTaskForm(selectedKid, k.color)}
+          <button class="btn ${ad?"pulse-anim":""}" onclick="completeWeek(${selectedKid})"
+            style="width:100%;margin-top:12px;padding:13px;background:${ad?"linear-gradient(135deg,#55EFC4,#00B894)":"#e0e0e0"};color:${ad?"white":"#aaa"};border-radius:14px;font-size:16px;cursor:${ad?"pointer":"not-allowed"}">
+            🎉 批准並發放 ${state.currency}${state.weeklyAllowance.toFixed(2)} 零用錢！
+          </button>`:
+          (ad?`<div style="text-align:center;padding:12px;background:#55EFC440;border-radius:12px;font-weight:700;color:#00B894;margin-top:8px">🌟 所有任務完成！等家長批核</div>`:"")}
+      </div>
+      <div class="card" style="background:#FFF0F5;padding:20px;margin-bottom:20px;border:2px solid #FFC0CB">
+        <div style="font-size:18px;font-weight:900;color:#E91E63;margin-bottom:14px">💸 記錄支出</div>
+        <div style="display:flex;gap:8px;margin-bottom:10px">
+          <input class="ifield" placeholder="買咗咩？" value="${esc(newExpenseDesc)}" oninput="newExpenseDesc=this.value" style="flex:1;border-color:#FFC0CB">
+          <div style="position:relative;width:90px">
+            <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);font-weight:800;color:#E91E63">${state.currency}</span>
+            <input class="ifield" type="number" step="0.01" min="0" placeholder="0.00" value="${newExpenseAmt}" oninput="newExpenseAmt=this.value" style="width:100%;padding-left:26px;border-color:#FFC0CB">
+          </div>
+        </div>
+        <button class="btn" onclick="addExpense(${selectedKid})" style="width:100%;padding:10px;background:#E91E63;color:white;border-radius:12px;font-size:15px">記錄支出</button>
+      </div>
+      <div style="font-size:18px;font-weight:900;color:#2d3436;margin-bottom:14px">📜 收支記錄</div>
+      ${histRows||`<div style="text-align:center;padding:20px;color:#b2bec3;font-weight:600">未有記錄</div>`}
+    </div>
+  </div>`;
+}
+
+// ADMIN
+function buildAdmin(){
+  const tabs=[{k:"tasks",l:"📋 任務"},{k:"profile",l:"👤 檔案"},{k:"settings",l:"🔧 設定"}];
+  const header=`
+  <div style="flex:1;display:flex;flex-direction:column">
+  <div style="background:linear-gradient(135deg,#6c5ce7,#a29bfe);padding:20px 24px 28px">
+    <button class="btn" onclick="view='home';render()" style="background:rgba(255,255,255,.2);border-radius:50%;width:36px;height:36px;font-size:18px;margin-bottom:12px;color:white">‹</button>
+    <div style="display:flex;align-items:center;gap:12px">
+      <span style="font-size:44px">⚙️</span>
+      <div><div style="font-size:20px;font-weight:900;color:white">家長管理中心</div><div style="font-size:13px;color:rgba(255,255,255,.8);font-weight:600">完整自訂選項</div></div>
+    </div>
+  </div>
+  <div class="tab-bar" style="grid-template-columns:1fr 1fr 1fr">
+    ${tabs.map(t=>`<button class="tab-btn" onclick="adminTab='${t.k}';render()" style="background:${adminTab===t.k?"#6c5ce7":"#f4f4f4"};color:${adminTab===t.k?"white":"#636e72"}">${t.l}</button>`).join("")}
+  </div>
+  <div style="flex:1;background:#f8f8f8;overflow-y:auto;padding:20px">`;
+
+  let body="";
+  if(adminTab==="tasks") body=buildAdminTasks();
+  if(adminTab==="profile") body=buildAdminProfile();
+  if(adminTab==="settings") body=buildAdminSettings();
+  return header+body+`</div></div>`;
+}
+
+function buildAdminTasks(){
+  const summary=state.kids.map(k=>{
+    const done=doneTaskCount(k.id);const kt=kidTasks(k.id);const ready=allDone(k.id);
+    return `<div class="card" style="flex:1;background:${k.bg};padding:14px;border:2px solid ${ready?k.color:k.light};text-align:center">
+      <div style="font-size:28px">${k.emoji}</div>
+      <div style="font-weight:800;color:${k.accent};font-size:14px">${k.name}</div>
+      <div style="font-weight:900;font-size:20px;color:#2d3436">${state.currency}${(state.balances[k.id]||0).toFixed(2)}</div>
+      <div style="font-size:11px;font-weight:700;color:${ready?"#00B894":k.color};margin-top:3px">${ready?"✅ 可發放！":`${done}/${kt.length} 完成`}</div>
+    </div>`;
+  }).join("");
+
+  const panels=state.kids.map(k=>{
+    const kt=kidTasks(k.id);const done=doneTaskCount(k.id);const ready=allDone(k.id);
+    const pct=kt.length?done/kt.length*100:0;
+    const rows=kt.map(t=>buildTaskRow(t,k,true)).join("");
+    return `
+    <div class="card" style="background:white;padding:20px;margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <span style="font-size:34px">${k.emoji}</span>
+        <div style="flex:1">
+          <div style="font-weight:900;color:${k.accent};font-size:16px">${k.name} 的任務</div>
+          <div style="font-size:12px;font-weight:700;color:${ready?"#00B894":k.color}">${ready?"✅ 全部完成！":`${done}/${kt.length} 完成`}</div>
+        </div>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${k.color}"></div></div>
+      <div style="margin-top:10px">${rows||`<div style="text-align:center;padding:10px;color:#b2bec3;font-size:13px">未有任務</div>`}</div>
+      ${buildAddTaskForm(k.id, k.color)}
+      <button class="btn ${ready?"pulse-anim":""}" onclick="completeWeek(${k.id})"
+        style="width:100%;margin-top:12px;padding:12px;background:${ready?"linear-gradient(135deg,#55EFC4,#00B894)":"#e8e8e8"};color:${ready?"white":"#bbb"};border-radius:14px;font-size:15px;cursor:${ready?"pointer":"not-allowed"}">
+        🎉 批准並發放 ${k.name} 的 ${state.currency}${state.weeklyAllowance.toFixed(2)} 零用錢！
+      </button>
+    </div>`;
+  }).join("");
+
+  return `<div style="display:flex;gap:12px;margin-bottom:20px">${summary}</div>${panels}`;
+}
+
+function buildAdminProfile(){
+  const kidCards=state.kids.map(k=>{
+    if(editingKid&&editingKid.id===k.id){
+      const emojiGrid=EMOJI_OPTIONS.map(em=>`<button class="emoji-opt" onclick="editingKid.emoji='${em}';showEmojiPicker=null;render()">${em}</button>`).join("");
+      const swatches=THEMES.map(t=>`<button class="btn" onclick="editingKid.color='${t.color}';editingKid.bg='${t.bg}';editingKid.accent='${t.accent}';editingKid.light='${t.light}';render()" title="${t.label}" style="width:30px;height:30px;border-radius:50%;background:${t.color};border:3px solid ${editingKid.color===t.color?"#2d3436":"transparent"}"></button>`).join("");
+      return `
+      <div class="card" style="background:white;padding:20px;margin-bottom:16px;border:2px solid #A29BFE">
+        <div style="font-weight:900;font-size:16px;margin-bottom:16px;color:#6c5ce7">✏️ 編輯 ${esc(editingKid.name)} 的檔案</div>
+        <div class="field-label">名稱</div>
+        <input class="ifield" value="${esc(editingKid.name)}" oninput="editingKid.name=this.value" style="margin-bottom:14px">
+        <div class="field-label">Icon</div>
+        <button class="btn" onclick="showEmojiPicker=showEmojiPicker?null:'kid';render()" style="font-size:40px;padding:8px 16px;background:#f8f8f8;border-radius:14px;border:2px solid #e0e0e0;margin-bottom:8px">${editingKid.emoji}</button>
+        ${showEmojiPicker==="kid"?`<div class="emoji-grid">${emojiGrid}</div>`:""}
+        <div class="field-label" style="margin-top:14px">主題顏色</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">${swatches}</div>
+        <div style="display:flex;gap:10px">
+          <button class="btn" onclick="editingKid=null;showEmojiPicker=null;render()" style="flex:1;padding:11px;background:#f0f0f0;border-radius:12px">取消</button>
+          <button class="btn" onclick="saveKidProfile()" style="flex:1;padding:11px;background:linear-gradient(135deg,#A29BFE,#6c5ce7);color:white;border-radius:12px">儲存</button>
+        </div>
+      </div>`;
+    }
+    return `
+    <div class="card" style="background:white;padding:20px;margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px">
+        <div style="font-size:48px;background:${k.bg};border-radius:16px;padding:8px 12px;border:2px solid ${k.light}">${k.emoji}</div>
+        <div style="flex:1">
+          <div style="font-weight:900;font-size:20px;color:${k.accent}">${k.name}</div>
+          <div style="font-size:13px;color:#aaa;font-weight:600">餘額 ${state.currency}${(state.balances[k.id]||0).toFixed(2)}</div>
+        </div>
+        <button class="btn" onclick="editingKid={...${JSON.stringify(k)}};showEmojiPicker=null;render()" style="padding:10px 16px;background:#6c5ce7;color:white;border-radius:12px;font-size:14px">✏️ 編輯</button>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        ${THEMES.map(t=>`<button class="color-swatch btn" onclick="applyTheme(${k.id},'${t.color}','${t.bg}','${t.accent}','${t.light}')" title="${t.label}" style="background:${t.color};border-color:${k.color===t.color?"#2d3436":"transparent"}"></button>`).join("")}
+      </div>
+    </div>`;
+  }).join("");
+
+  const adjustPanel=`
+  <div class="card" style="background:white;padding:20px;margin-bottom:16px">
+    <div class="section-header">💰 餘額調整</div>
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      ${state.kids.map(k=>`<button class="btn" onclick="showAdjustBalance=${k.id};adjustDesc='';adjustAmt='';render()" style="flex:1;padding:10px;border-radius:12px;background:${showAdjustBalance===k.id?k.color:k.bg};color:${showAdjustBalance===k.id?"white":k.accent};border:2px solid ${k.color};font-size:14px">${k.emoji} ${k.name}</button>`).join("")}
+    </div>
+    ${showAdjustBalance?`
+      <div style="font-size:13px;font-weight:700;color:#888;margin-bottom:10px">目前餘額：${state.currency}${(state.balances[showAdjustBalance]||0).toFixed(2)}</div>
+      <div class="field-label">備注</div>
+      <input class="ifield" placeholder="如：獎勵、罰款" value="${esc(adjustDesc)}" oninput="adjustDesc=this.value" style="margin-bottom:10px">
+      <div class="field-label">金額（正數增加 / 負數扣除）</div>
+      <div style="position:relative;margin-bottom:12px">
+        <span style="position:absolute;left:14px;top:50%;transform:translateY(-50%);font-weight:800;color:#6c5ce7">${state.currency}</span>
+        <input class="ifield" type="number" step="0.01" placeholder="0.00 或 -0.50" value="${adjustAmt}" oninput="adjustAmt=this.value" style="padding-left:32px">
+      </div>
+      <button class="btn" onclick="applyAdjust(${showAdjustBalance})" style="width:100%;padding:11px;background:#6c5ce7;color:white;border-radius:12px;font-size:15px">確認調整</button>
+    `:`<div style="text-align:center;padding:10px;color:#b2bec3;font-size:13px;font-weight:600">請選擇要調整餘額的孩子</div>`}
+  </div>`;
+  return kidCards+adjustPanel;
+}
+
+function buildAdminSettings(){
+  const emojiGrid2=EMOJI_OPTIONS.map(em=>`<button class="emoji-opt" onclick="state.appEmoji='${em}';showEmojiPicker=null;save();render()">${em}</button>`).join("");
+  return `
+    <div class="section-header">🏠 App 設定</div>
+    <div class="card" style="background:white;padding:20px;margin-bottom:16px">
+      <div class="field-label">App 標題</div>
+      <input class="ifield" value="${esc(state.appTitle)}" oninput="state.appTitle=this.value;save()" style="margin-bottom:14px">
+      <div class="field-label">App Icon</div>
+      <button class="btn" onclick="showEmojiPicker=showEmojiPicker?null:'app';render()" style="font-size:40px;padding:8px 16px;background:#f8f8f8;border-radius:14px;border:2px solid #e0e0e0;margin-bottom:8px">${state.appEmoji}</button>
+      ${showEmojiPicker==="app"?`<div class="emoji-grid">${emojiGrid2}</div>`:""}
+    </div>
+    <div class="section-header" style="margin-top:4px">💷 零用錢設定</div>
+    <div class="card" style="background:white;padding:20px;margin-bottom:16px">
+      <div class="field-label">貨幣符號</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+        ${["£","$","€","¥","HK$"].map(c=>`<button class="btn" onclick="state.currency='${c}';save();render()" style="padding:8px 16px;background:${state.currency===c?"#6c5ce7":"#f4f4f4"};color:${state.currency===c?"white":"#636e72"};border-radius:10px;font-size:15px">${c}</button>`).join("")}
+      </div>
+      <div class="field-label">每週零用錢金額</div>
+      <div style="position:relative;margin-bottom:14px">
+        <span style="position:absolute;left:14px;top:50%;transform:translateY(-50%);font-weight:800;color:#6c5ce7">${state.currency}</span>
+        <input class="ifield" type="number" step="0.50" min="0" value="${state.weeklyAllowance}" oninput="state.weeklyAllowance=parseFloat(this.value)||0;save()" style="padding-left:32px">
+      </div>
+      <div class="field-label">任務欄標題</div>
+      <input class="ifield" value="${esc(state.taskLabel)}" oninput="state.taskLabel=this.value;save()" style="margin-bottom:14px">
+      <div class="field-label">零用錢說明文字</div>
+      <input class="ifield" value="${esc(state.allowanceLabel)}" oninput="state.allowanceLabel=this.value;save()">
+    </div>
+    <div class="section-header" style="margin-top:4px">🔐 安全設定</div>
+    <div class="card" style="background:white;padding:20px;margin-bottom:16px">
+      ${!editingPin?`
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div><div style="font-weight:800;color:#2d3436">家長密碼</div><div style="font-size:13px;color:#aaa">••••</div></div>
+          <button class="btn" onclick="editingPin=true;newPinVal='';render()" style="padding:9px 16px;background:#f0f0f0;border-radius:12px;font-size:14px;color:#636e72">更改密碼</button>
+        </div>`:
+        `<div style="font-size:14px;font-weight:700;color:#2d3436;margin-bottom:10px">設定新密碼（4位）</div>
+        <input type="password" maxlength="4" class="ifield" placeholder="新密碼" value="${newPinVal}" oninput="newPinVal=this.value" style="letter-spacing:8px;font-size:22px;text-align:center;margin-bottom:10px">
+        <div style="display:flex;gap:8px">
+          <button class="btn" onclick="editingPin=false;newPinVal='';render()" style="flex:1;padding:10px;background:#f0f0f0;border-radius:12px">取消</button>
+          <button class="btn" onclick="confirmPinChange()" style="flex:1;padding:10px;background:#6c5ce7;color:white;border-radius:12px">確認</button>
+        </div>`}
+    </div>
+    <button class="btn" onclick="logout()" style="width:100%;padding:13px;background:#FFE0E0;color:#E17055;border-radius:14px;font-size:15px;margin-top:4px">🚪 登出家長模式</button>`;
+}
+
+// ANALYTICS
+function getMonthlyData(kidId,months=6){
+  const hist=state.history[kidId]||[];
+  const now=new Date();
+  return Array.from({length:months},(_,i)=>{
+    const d=new Date(now.getFullYear(),now.getMonth()-(months-1-i),1);
+    const label=`${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,"0")}`;
+    const mh=hist.filter(e=>{const ed=new Date(e.date);return ed.getFullYear()===d.getFullYear()&&ed.getMonth()===d.getMonth();});
+    const income=mh.filter(e=>e.amount>0).reduce((s,e)=>s+e.amount,0);
+    const expense=mh.filter(e=>e.amount<0).reduce((s,e)=>s+Math.abs(e.amount),0);
+    return {label,income:parseFloat(income.toFixed(2)),expense:parseFloat(expense.toFixed(2))};
+  });
+}
+let chartInstance=null;
+function renderChart(kidId){
+  setTimeout(()=>{
+    const canvas=document.getElementById("analyticsChart");
+    if(!canvas) return;
+    const k=kid(kidId);const data=getMonthlyData(kidId,6);
+    if(chartInstance){chartInstance.destroy();chartInstance=null;}
+    chartInstance=new Chart(canvas,{type:"bar",data:{labels:data.map(d=>d.label),datasets:[
+      {label:"收入",data:data.map(d=>d.income),backgroundColor:k.color+"BB",borderColor:k.color,borderWidth:2,borderRadius:8},
+      {label:"支出",data:data.map(d=>d.expense),backgroundColor:"#FF7675BB",borderColor:"#FF7675",borderWidth:2,borderRadius:8},
+    ]},options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{font:{family:"Nunito",weight:"700"},color:"#2d3436"}}},
+      scales:{x:{grid:{display:false},ticks:{font:{family:"Nunito",weight:"700"},color:"#636e72"}},
+              y:{grid:{color:"#f0f0f0"},ticks:{font:{family:"Nunito"},color:"#636e72",callback:v=>`${state.currency}${v.toFixed(2)}`},beginAtZero:true}}}});
+  },80);
+}
+function buildAnalytics(){
+  const k=kid(analyticsKid);
+  const hist=state.history[analyticsKid]||[];
+  const monthly=getMonthlyData(analyticsKid,6);
+  const totalIncome=hist.filter(e=>e.amount>0).reduce((s,e)=>s+e.amount,0);
+  const totalExpense=hist.filter(e=>e.amount<0).reduce((s,e)=>s+Math.abs(e.amount),0);
+  const bestMonth=[...monthly].sort((a,b)=>b.income-a.income)[0];
+  const mostSpend=[...monthly].sort((a,b)=>b.expense-a.expense)[0];
+  const topExp=hist.filter(e=>e.amount<0).sort((a,b)=>Math.abs(b.amount)-Math.abs(a.amount)).slice(0,3);
+  const switcher=state.kids.map(k2=>`<button class="btn" onclick="analyticsKid=${k2.id};render()" style="flex:1;padding:10px;border-radius:12px;background:${analyticsKid===k2.id?k2.color:k2.bg};color:${analyticsKid===k2.id?"white":k2.accent};border:2px solid ${k2.color};font-size:14px">${k2.emoji} ${k2.name}</button>`).join("");
+  return `
+  <div style="flex:1;display:flex;flex-direction:column">
+    <div style="background:linear-gradient(135deg,${k.color},${k.accent});padding:20px 24px 32px;position:relative;overflow:hidden">
+      <div style="position:absolute;top:-10px;right:-10px;font-size:90px;opacity:.12">📊</div>
+      <button class="btn" onclick="view='kid';render()" style="background:rgba(255,255,255,.3);border-radius:50%;width:36px;height:36px;font-size:18px;margin-bottom:12px;color:white">‹</button>
+      <div style="font-size:22px;font-weight:900;color:white">收支分析</div>
+      <div style="font-size:14px;color:rgba(255,255,255,.85);font-weight:600;margin-top:2px">${k.emoji} ${k.name}</div>
+    </div>
+    <div style="flex:1;background:#f8f8f8;overflow-y:auto;padding:20px;border-radius:24px 24px 0 0;margin-top:-16px">
+      <div style="display:flex;gap:10px;margin-bottom:20px">${switcher}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
+        <div class="stat-box card" style="background:${k.bg};border:2px solid ${k.light}"><div style="font-size:11px;font-weight:800;color:${k.accent};opacity:.7;margin-bottom:4px">總收入</div><div style="font-size:22px;font-weight:900;color:#00B894">+${state.currency}${totalIncome.toFixed(2)}</div><div style="font-size:11px;color:#aaa;margin-top:2px">${hist.filter(e=>e.amount>0).length} 次入賬</div></div>
+        <div class="stat-box card" style="background:#FFF5F5;border:2px solid #FFDADA"><div style="font-size:11px;font-weight:800;color:#D63031;opacity:.7;margin-bottom:4px">總支出</div><div style="font-size:22px;font-weight:900;color:#E17055">-${state.currency}${totalExpense.toFixed(2)}</div><div style="font-size:11px;color:#aaa;margin-top:2px">${hist.filter(e=>e.amount<0).length} 次支出</div></div>
+        <div class="stat-box card" style="background:white;border:2px solid #e0e0e0"><div style="font-size:11px;font-weight:800;color:#636e72;opacity:.7;margin-bottom:4px">目前餘額</div><div style="font-size:22px;font-weight:900;color:#2d3436">${state.currency}${(state.balances[analyticsKid]||0).toFixed(2)}</div></div>
+        <div class="stat-box card" style="background:white;border:2px solid #e0e0e0"><div style="font-size:11px;font-weight:800;color:#636e72;opacity:.7;margin-bottom:4px">淨儲蓄</div><div style="font-size:22px;font-weight:900;color:${totalIncome-totalExpense>=0?"#00B894":"#E17055"}">${state.currency}${(totalIncome-totalExpense).toFixed(2)}</div></div>
+      </div>
+      <div class="card" style="background:white;padding:20px;margin-bottom:16px">
+        <div style="font-size:15px;font-weight:900;color:#2d3436;margin-bottom:14px">📈 近6個月收支</div>
+        <div class="chart-container"><canvas id="analyticsChart"></canvas></div>
+      </div>
+      <div class="card" style="background:white;padding:20px;margin-bottom:16px">
+        <div style="font-size:15px;font-weight:900;color:#2d3436;margin-bottom:14px">🗓️ 月份明細</div>
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead><tr style="color:#aaa;font-weight:800;font-size:11px;text-transform:uppercase"><th style="text-align:left;padding:6px 8px">月份</th><th style="text-align:right;padding:6px 8px;color:#00B894">收入</th><th style="text-align:right;padding:6px 8px;color:#E17055">支出</th><th style="text-align:right;padding:6px 8px">結餘</th></tr></thead>
+          <tbody>${monthly.map(m=>`<tr style="border-top:1px solid #f0f0f0"><td style="padding:9px 8px;font-weight:700;color:#2d3436">${m.label}</td><td style="padding:9px 8px;text-align:right;font-weight:700;color:#00B894">${m.income>0?"+"+state.currency+m.income.toFixed(2):"-"}</td><td style="padding:9px 8px;text-align:right;font-weight:700;color:#E17055">${m.expense>0?"-"+state.currency+m.expense.toFixed(2):"-"}</td><td style="padding:9px 8px;text-align:right;font-weight:800;color:${m.income-m.expense>=0?"#2d3436":"#E17055"}">${state.currency}${(m.income-m.expense).toFixed(2)}</td></tr>`).join("")}</tbody>
+        </table>
+      </div>
+      <div class="card" style="background:white;padding:20px;margin-bottom:16px">
+        <div style="font-size:15px;font-weight:900;color:#2d3436;margin-bottom:14px">💡 小洞察</div>
+        ${bestMonth&&bestMonth.income>0?`<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:#E8FBF5;border-radius:12px;margin-bottom:8px"><span style="font-size:22px">🏆</span><div><div style="font-weight:800;color:#00B894;font-size:13px">最多收入月份</div><div style="font-weight:700;color:#2d3436;font-size:12px">${bestMonth.label}：+${state.currency}${bestMonth.income.toFixed(2)}</div></div></div>`:""}
+        ${mostSpend&&mostSpend.expense>0?`<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:#FFF5F5;border-radius:12px;margin-bottom:8px"><span style="font-size:22px">🛍️</span><div><div style="font-weight:800;color:#E17055;font-size:13px">最多支出月份</div><div style="font-weight:700;color:#2d3436;font-size:12px">${mostSpend.label}：-${state.currency}${mostSpend.expense.toFixed(2)}</div></div></div>`:""}
+        ${topExp.length?`<div style="font-size:12px;font-weight:800;color:#aaa;margin:10px 0 8px;text-transform:uppercase;letter-spacing:1px">最大支出項目</div>${topExp.map((e,i)=>`<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:#f8f8f8;border-radius:10px;margin-bottom:6px"><span style="font-weight:900;color:${["#FF9F43","#b2bec3","#A29BFE"][i]};font-size:16px">#${i+1}</span><span style="flex:1;font-weight:700;color:#2d3436;font-size:13px">${esc(e.desc)}</span><span style="font-weight:800;color:#E17055;font-size:13px">-${fmtAmt(e.amount)}</span></div>`).join("")}`:""}
+        ${hist.length===0?`<div style="text-align:center;padding:20px;color:#b2bec3;font-weight:600">暫無數據 📊</div>`:""}
+      </div>
+    </div>
+  </div>`;
+}
+
+function esc(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");}
+function attachEvents(){}
+
+render();
+</script>
+
+<script>
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>{
+    navigator.serviceWorker.register('./sw.js')
+      .then(r=>console.log('SW:',r.scope)).catch(e=>console.log('SW err:',e));
+  });
+}
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt',e=>{
+  e.preventDefault();deferredPrompt=e;
+  setTimeout(()=>{const b=document.getElementById('installBanner');if(b)b.classList.add('show');},2000);
+});
+function installApp(){
+  if(!deferredPrompt) return;
+  deferredPrompt.prompt();
+  deferredPrompt.userChoice.then(()=>{deferredPrompt=null;document.getElementById('installBanner')?.classList.remove('show');});
+}
+if(window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone){
+  document.getElementById('installBanner')?.classList.remove('show');
+}
+</script>
+</body>
+</html>
